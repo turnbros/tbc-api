@@ -1,17 +1,13 @@
 import json
 from tenant_handler.tenant import Tenant
 
-
 class TenantStore(object):
 
   def __init__(self):
     self._tenant_store = {}
 
   def get_tenant_names(self):
-    names = []
-    for tenant in self._tenant_store:
-      names.append(tenant.name)
-    return names
+    return list(self._tenant_store.keys())
 
   def get_tenant(self, tenant_name) -> Tenant:
     tenant = self._tenant_store.get(tenant_name)
@@ -52,3 +48,8 @@ class TenantStore(object):
 
   def get_tenant_resources(self, tenant_name):
     return self.get_tenant(tenant_name).get_resources(), 200
+
+tenant_store = TenantStore()
+
+def get_tenant_store():
+  return tenant_store

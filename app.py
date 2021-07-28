@@ -1,10 +1,10 @@
 import config_handler
 from flask import Flask
 from auth_handler import AuthHandler
-from tenant_handler import routes as tenant_routes
+from tenant_handler import tenant_routes
 
 app = Flask(__name__)
-app.register_blueprint(tenant_routes, url_prefix='/tenant')
+app.register_blueprint(tenant_routes)
 
 if __name__ == "__main__":
   auth = AuthHandler(app)
