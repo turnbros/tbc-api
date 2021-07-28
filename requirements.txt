@@ -6,14 +6,14 @@ click==8.0.1
 configparser==3.5.0
 cryptography==3.4.7
 ecdsa==0.17.0
-Flask==0.12.2
+Flask==2.0.1
 Flask-OAuthlib==0.9.4
 future==0.18.2
 idna==2.5
 importlib-metadata==4.6.1
 influxdb==4.1.1
 itsdangerous==2.0.1
-Jinja2==2.9.6
+Jinja2==3.0.1
 MarkupSafe==2.0.1
 oauthlib==2.0.6
 pycparser==2.20
