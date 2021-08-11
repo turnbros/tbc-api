@@ -5,7 +5,7 @@ locals {
 module "example_null_module_1" {
   source = "./example-module"
   for_each = local.tenant_modules["example_null_module_1"]
-  value_1 = each.value["value_1"]
-  value_2 = each.value["value_2"]
-  value_3 = each.value["value_3"]
+  value_1 = each.value["parameters"]["value_1"]
+  value_2 = each.value["parameters"]["value_2"]
+  value_3 = each.value["parameters"]["value_3"]
 }

@@ -1,91 +1,36 @@
-import json
-from collections import KeysView
-from tenant_handler.state import TenantState
-from tenant_handler.resource import TenantResourceCollection, TenantResource
-
+from tenant_handler.tenant_resource_collection import TenantResourceCollection
 
 class Tenant(object):
-  def __init__(self, name):
-    self._name = name
-    self._state = TenantState()
-    self._resources = TenantResourceCollection()
+  def __init__(self, collection, resource_collection, name, document_id):
+    self._collection = collection
+    self._query = {"name": name}
+    self._resource_collection = TenantResourceCollection(resource_collection, document_id)
 
-    example_null_module_1_instance_1 = TenantResource("instance_1", "example_null_module_1")
-    example_null_module_1_instance_1.parameters = {
-      "value_1": "foo_1",
-      "value_2": "bar_1",
-      "value_3": "baz_1"
-    }
-
-    example_null_module_1_instance_2 = TenantResource("instance_2", "example_null_module_1")
-    example_null_module_1_instance_2.parameters = {
-      "value_1": "foo_2",
-      "value_2": "bar_2",
-      "value_3": "baz_2"
-    }
-
-    example_null_module_1_instance_3 = TenantResource("instance_3", "example_null_module_1")
-    example_null_module_1_instance_3.parameters = {
-      "value_1": "foo_3",
-      "value_2": "bar_3",
-      "value_3": "baz_3"
-    }
-
-
-  ########################
-  ## Tenant Information ##
-  ########################
   @property
   def name(self) -> str:
-    return self._name
-
-  ############################
-  ## Tenant Terraform State ##
-  ############################
-  @property
-  def lock(self):
-    return self._state.lock
-
-  def lock_state(self, lock):
-    return self._state.lock_state(lock)
-
-  def unlock_state(self, lock_id):
-    return self._state.unlock_state(lock_id)
+    return self._collection.find_one(self._query, {"name": 1, "_id": 0})["name"]
 
   @property
-  def state(self)-> dict:
-    return self._state.state
+  def members(self) -> list:
+    return self._collection.find_one(self._query, {"members": 1, "_id": 0})["members"]
 
-  @state.setter
-  def state(self, value):
-    self._state.state = value
+  @members.setter
+  def members(self, value):
+    self._collection.update_one(self._query, {"$set": {"members": value}})
 
-  ######################
-  ## Tenant Resources ##
-  ######################
   @property
-  def resources(self):
-    return self._resources
+  def roles(self) -> list:
+    return self._collection.find_one(self._query, {"roles": 1, "_id": 0})["roles"]
 
-  def get_resources(self):
-    return json.dumps(self._resources)
+  @roles.setter
+  def roles(self, value):
+    self._collection.update_one(self._query, {"$set": {"roles": value}})
 
-  def get_resource(self, tenant_resource_name) -> TenantResource:
-    return self._resources.get_by_name(tenant_resource_name)
-
-  def add_resource(self, tenant_resource):
-    self._resources.put_resource(tenant_resource)
-
-  def update_resource(self, tenant_resource):
-    self._resources.put_resource(tenant_resource)
-
-  def remove_resource(self, tenant_resource_name):
-    self._resources.remove_resource(tenant_resource_name)
+  @property
+  def resource_collection(self):
+    return self._resource_collection
 
   def to_json(self):
-    return {
-      "name": self.name,
-      "lock": self.lock,
-      "state": self.state,
-      "resources": self.resources
-    }
+    tenant = self._collection.find_one(self._query, {"_id": 0})
+    tenant["resource_collection"] = self.resource_collection.to_json()
+    return tenant
