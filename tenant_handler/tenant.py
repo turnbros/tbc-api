@@ -1,14 +1,42 @@
-from tenant_handler.tenant_resource_collection import TenantResourceCollection
+from config_handler import Config
+from tenant_handler.tenant_resource_manifest import TenantResourceManifest
+from util import get_collection
+
 
 class Tenant(object):
-  def __init__(self, collection, resource_collection, name, document_id):
-    self._collection = collection
-    self._query = {"name": name}
-    self._resource_collection = TenantResourceCollection(resource_collection, document_id)
+
+  def __init__(self, name):
+    self._config = Config()
+    self._collection = self._get_collection()
+    self._name = name
+    self._query = {"name": self._name}
+
+  @staticmethod
+  def _get_collection():
+    config = Config()
+    return get_collection(
+      config.get_string_value("database", "database"),
+      config.get_string_value("database", "tenant_collection")
+    )
+
+  @classmethod
+  def list_tenants(cls):
+    return list(cls._get_collection.find({}, {"name": 1, "_id": 0}))
+
+  @classmethod
+  def create_tenant(cls, **kwargs):
+    tenant = {
+      "name": kwargs["name"],
+      "members": [],
+      "roles": []
+    }
+    cls._get_collection().insert_one(tenant)
+    TenantResourceManifest.create_resource_manifest(tenant_name=kwargs["name"])
+    return Tenant(kwargs["name"]).to_json()
 
   @property
   def name(self) -> str:
-    return self._collection.find_one(self._query, {"name": 1, "_id": 0})["name"]
+    return self._name
 
   @property
   def members(self) -> list:
@@ -27,10 +55,10 @@ class Tenant(object):
     self._collection.update_one(self._query, {"$set": {"roles": value}})
 
   @property
-  def resource_collection(self):
-    return self._resource_collection
+  def resource_manifest(self):
+    return TenantResourceManifest(self.name)
 
   def to_json(self):
     tenant = self._collection.find_one(self._query, {"_id": 0})
-    tenant["resource_collection"] = self.resource_collection.to_json()
+    tenant["resource_manifest"] = self.resource_manifest.to_json()
     return tenant
