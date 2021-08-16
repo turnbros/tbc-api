@@ -1,4 +1,4 @@
-from typing import List
+from typing import Tuple
 
 from bson import ObjectId
 from config_handler import Config
@@ -44,7 +44,7 @@ class TenantResource(object):
     return TenantResource(str(cls._get_collection().find_one(criteria, {"_id": 1})["_id"]))
 
   @classmethod
-  def create_resource(cls, **kwargs):
+  def create_resource(cls, **kwargs) -> Tuple[bool, str]:
     resource = {
       "tenant_name": kwargs.get("tenant_name"),
       "manifest_id": kwargs.get("manifest_id"),
@@ -55,7 +55,8 @@ class TenantResource(object):
       "parameters": kwargs.get("parameters"),
       "components": []
     }
-    cls._get_collection().insert_one(resource)
+    inserted_document = cls._get_collection().insert_one(resource)
+    return inserted_document.acknowledged, str(inserted_document.inserted_id)
 
   @classmethod
   def delete_resource(cls, tenant_name, manifest_id, resource_id):

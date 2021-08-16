@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, Tuple
 from bson.objectid import ObjectId
 from config_handler import Config
 from tenant_handler.tenant_resource import TenantResource
@@ -94,38 +94,27 @@ class TenantResourceManifest(object):
 
   @property
   def resources(self) -> dict:
-    tenant_resources = {}
-    for resource in self.list_resources():
-      if resource.status != "purge":
-        if resource.module not in tenant_resources.keys():
-          tenant_resources[resource.module] = {}
-        tenant_resources[resource.module][resource.name] = resource.to_json()
-    return tenant_resources
-
-  def list_resources(self) -> List[TenantResource]:
     return TenantResource.list_resources(self.tenant_name, self.id)
 
   def get_resource(self, resource_id):
     return TenantResource.get_resource(self.tenant_name, self.id, resource_id)
 
+  # TODO: This won't work right.
   def find_resource(self, criteria=None) -> TenantResource:
-
     if criteria is None:
       criteria = {}
-
     criteria["tenant_name"] = self.tenant_name
     criteria["manifest_id"] = self.id
-
     return self._collection.find_one(self._query, { "resources": { "$elemMatch": criteria }, "_id": 0 })
 
-  def put_resource(self, resource:dict):
+  def put_resource(self, resource:dict) -> Tuple[bool,str]:
 
     # Construct the query we'll use to get the resource.
     resource_query = {"_id": ObjectId(self.id), "resources": {"$elemMatch":{"name":resource.get("name"), "module": resource.get("module")}}}
 
     # If it doesn't exist we'll go ahead and push a new one.
     if self._collection.find_one(resource_query) is None:
-      TenantResource.create_resource(
+      return TenantResource.create_resource(
         tenant_name=self.tenant_name,
         manifest_id=self.id,
         name=resource.get("name"),
@@ -153,18 +142,22 @@ class TenantResourceManifest(object):
     tenant_resource_manifest["id"] = str(tenant_resource_manifest["_id"])
     tenant_resource_manifest.pop("_id")
     tenant_resource_manifest["resources"] = []
-    for resource in TenantResource.list_resources(self.tenant_name, self.id):
+    for resource in self.resources:
       tenant_resource_manifest["resources"].append(resource.to_json())
     return tenant_resource_manifest
-
-
-
-
-
 
   ################################
   ## Terraform State Operations ##
   ################################
+
+  def get_workspace_variables(self) -> dict:
+    tenant_resources = {}
+    for resource in self.resources:
+      if resource.status != "purge":
+        if resource.module not in tenant_resources.keys():
+          tenant_resources[resource.module] = {}
+        tenant_resources[resource.module][resource.name] = resource.to_json()
+    return tenant_resources
 
   def lock_state(self, lock) -> Union[None, dict]:
     if self.lock is None:
@@ -215,8 +208,10 @@ class TenantResourceManifest(object):
 
   def to_state(self):
     state_resources = []
-    for resource in self.list_resources():
-      state_resources.extend(resource.components)
+
+    for resource in self.resources:
+      if resource.status != "purge":
+        state_resources.extend(resource.components)
 
     return {
       "version": self.version,

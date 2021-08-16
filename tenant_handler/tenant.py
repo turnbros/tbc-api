@@ -21,7 +21,7 @@ class Tenant(object):
 
   @classmethod
   def list_tenants(cls):
-    return list(cls._get_collection.find({}, {"name": 1, "_id": 0}))
+    return list(cls._get_collection().find({}, {"name": 1, "_id": 0}))
 
   @classmethod
   def create_tenant(cls, **kwargs):

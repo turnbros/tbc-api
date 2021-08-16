@@ -1,8 +1,8 @@
 import json
 import auth_handler
 from flask import Blueprint, Response, request
-
 from tenant_handler.tenant import Tenant
+from terraform_runner import runner
 
 tenant_routes = Blueprint('tenant', __name__, url_prefix='/tenant')
 
@@ -13,7 +13,7 @@ tenant_routes = Blueprint('tenant', __name__, url_prefix='/tenant')
 @tenant_routes.route('', methods=['GET'])
 @auth_handler.requires_auth
 def list_tenants():
-  return Response(Tenant.list_tenants(), content_type='application/json'), 200
+  return Response(json.dumps(Tenant.list_tenants()), content_type='application/json'), 200
 
 @tenant_routes.route('', methods=['POST'])
 @auth_handler.requires_auth
@@ -26,23 +26,16 @@ def get_tenant(name):
   return Response(json.dumps(Tenant(name).to_json()), content_type='application/json'), 200
 
 
-
-############################
-## Tenant Manifest Routes ##
-############################
-
-@tenant_routes.route('/<name>/resource_manifest', methods=['GET'])
-@auth_handler.requires_auth
-def get_tenant_resource_collection(name):
-  return Response(json.dumps(Tenant(name).resource_manifest.to_json()), content_type='application/json'), 200
-
-
-
 ############################
 ## Tenant Resource Routes ##
 ############################
 
-@tenant_routes.route('/<name>/resource_manifest', methods=['PUT'])
+@tenant_routes.route('/<name>/resource', methods=['GET'])
+@auth_handler.requires_auth
+def get_tenant_resource_collection(name):
+  return Response(json.dumps(Tenant(name).resource_manifest.to_json()), content_type='application/json'), 200
+
+@tenant_routes.route('/<name>/resource', methods=['PUT'])
 @auth_handler.requires_auth
 def create_tenant_resource(name):
   requested_resource = json.loads(request.data)
@@ -51,51 +44,57 @@ def create_tenant_resource(name):
     "module": requested_resource.get("module", None),
     "parameters": requested_resource.get("parameters", None)
   }
-  return Response(json.dumps(Tenant(name).resource_manifest.put_resource(tenant_resource)), content_type='application/json'), 200
+  Tenant(name).resource_manifest.put_resource(tenant_resource)
 
-@tenant_routes.route('/<name>/resource_manifest/<resource_id>', methods=['GET'])
+  print(runner.run_terraform(name))
+  return Response(json.dumps(tenant_resource), content_type='application/json'), 200
+
+@tenant_routes.route('/<name>/resource/<resource_id>', methods=['GET'])
 @auth_handler.requires_auth
 def get_tenant_resource(name, resource_id):
   return Response(json.dumps(Tenant(name).resource_manifest.get_resource(resource_id)), content_type='application/json'), 200
 
-@tenant_routes.route('/<name>/resource_manifest/<resource_id>', methods=['DELETE'])
+@tenant_routes.route('/<name>/resource/<resource_id>', methods=['DELETE'])
 @auth_handler.requires_auth
 def delete_tenant_resource(name, resource_id):
   return Response(json.dumps(Tenant(name).resource_manifest.delete_resource(resource_id)), content_type='application/json'), 200
 
 
 #######################################
-## Tenant Terraform Parameter Routes ##
+## Tenant Terraform Workspace Routes ##
 #######################################
 
-@tenant_routes.route('/<name>/resources', methods=['GET'])
+@tenant_routes.route('/<name>/workspace/variables', methods=['GET'])
 @auth_handler.requires_auth
-def get_tenant_resources(name):
-  return Response(json.dumps(Tenant(name).resource_manifest.resources), content_type='application/json'), 200
+def get_tenant_workspace_variables(name):
+  tenant_workspace_variables = Tenant(name).resource_manifest.get_workspace_variables()
+  return Response(json.dumps(tenant_workspace_variables), content_type='application/json'), 200
 
+@tenant_routes.route('/<name>/workspace/apply', methods=['PUT'])
+@auth_handler.requires_auth
+def run_terraform_apply_job(name=None):
+  result = runner.run_terraform(name)
+  return Response(json.dumps(result), content_type='application/json'), 200
 
-###################################
-## Tenant Terraform State Routes ##
-###################################
-
-@tenant_routes.route('/<name>/resource_collection/state', methods=['GET'])
+@tenant_routes.route('/<name>/workspace/state', methods=['GET'])
 @auth_handler.requires_auth
 def get_tenant_resource_collection_state(name):
-  return Response(json.dumps(Tenant(name).resource_manifest.to_state()), content_type='application/json'), 200
+  manifest_state = Tenant(name).resource_manifest.to_state()
+  return Response(json.dumps(manifest_state), content_type='application/json'), 200
 
-@tenant_routes.route('/<name>/resource_collection/state', methods=['POST'])
+@tenant_routes.route('/<name>/workspace/state', methods=['POST'])
 @auth_handler.requires_auth
 def update_tenant_terraform_state(name=None):
   if Tenant(name).resource_manifest.update_from_state(request.args["ID"], json.loads(request.data)):
     return "", 200
   return "", 423
 
-@tenant_routes.route('/<name>/resource_collection/state', methods=['DELETE'])
+@tenant_routes.route('/<name>/workspace/state', methods=['DELETE'])
 @auth_handler.requires_auth
 def purge_tenant_terraform_state(name=None):
   return Tenant(name).resource_manifest.purge_state()
 
-@tenant_routes.route('/<name>/resource_collection/state', methods=['LOCK'])
+@tenant_routes.route('/<name>/workspace/state', methods=['LOCK'])
 @auth_handler.requires_auth
 def lock_tenant_terraform_state(name=None):
   requested_lock = json.loads(request.data)
@@ -104,7 +103,7 @@ def lock_tenant_terraform_state(name=None):
     return state_lock, 200
   return state_lock, 409
 
-@tenant_routes.route('/<name>/resource_collection/state', methods=['UNLOCK'])
+@tenant_routes.route('/<name>/workspace/state', methods=['UNLOCK'])
 @auth_handler.requires_auth
 def unlock_tenant_terraform_state(name=None):
   requested_lock = json.loads(request.data)
@@ -113,7 +112,7 @@ def unlock_tenant_terraform_state(name=None):
     return "", 200
   return state_lock, 423
 
-@tenant_routes.route('/<name>/resource_collection/state/lock', methods=['GET'])
+@tenant_routes.route('/<name>/workspace/state/lock', methods=['GET'])
 @auth_handler.requires_auth
 def get_tenant_terraform_lock(name=None):
   tenant_terraform_lock = Tenant(name).resource_manifest.lock
