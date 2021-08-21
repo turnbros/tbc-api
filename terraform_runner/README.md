@@ -1,1 +1,0 @@
-This should be replaced by some kind of worker that listens to a Celery task queue 

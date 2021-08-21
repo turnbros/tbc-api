@@ -1,3 +1,6 @@
+# Need this to run commands before starting app because apple cloud keeps borking things
+start_app.sh
+
 .idea
 *.secrets
 *.conf
