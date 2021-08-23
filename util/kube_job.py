@@ -1,29 +1,16 @@
-import hashlib
-import string
-import random
 import logging
-import yaml
-import sys, os, time
-from kubernetes import client, config, utils
+import sys
+from kubernetes import client, config
 import kubernetes.client
 from kubernetes.client.rest import ApiException
 
 # Set logging
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-api_cert = "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJrRENDQVRlZ0F3SUJBZ0lJWUwySlNheFIxODh3Q2dZSUtvWkl6ajBFQXdJd0l6RWhNQjhHQTFVRUF3d1kKYXpOekxXTnNhV1Z1ZEMxallVQXhOakUxTVRZMU16azVNQjRYRFRJeE1ETXdPREF4TURNeE9Wb1hEVEl5TURNdwpPREF4TURNeE9Wb3dNREVYTUJVR0ExVUVDaE1PYzNsemRHVnRPbTFoYzNSbGNuTXhGVEFUQmdOVkJBTVRESE41CmMzUmxiVHBoWkcxcGJqQlpNQk1HQnlxR1NNNDlBZ0VHQ0NxR1NNNDlBd0VIQTBJQUJBZUREZERJcFZLa21QUTMKQ2kwdzYwQ3Z4Zko2NmRhRTgxZnQvQ1lDUUZQZk15NUMwVXkrRkVnaDJya3o0T29TOVhjRU1hb0ZhQXkzaVR4bQpwdFQ5VlVpalNEQkdNQTRHQTFVZER3RUIvd1FFQXdJRm9EQVRCZ05WSFNVRUREQUtCZ2dyQmdFRkJRY0RBakFmCkJnTlZIU01FR0RBV2dCU1hQdUg0cTg3eE00cGMrbUVZN2JHQmtheGNaakFLQmdncWhrak9QUVFEQWdOSEFEQkUKQWlBNSt5WTF1a2RkQkZkdVJ5SzN0WUY3c0pkT1NaNlV0ZmNXYTJSZ2NKQlBVd0lnRW1LaEdMSUEyWjdvYXFwSQpibDVCalZvNGhDcVhsaE1hQUJWcTJyaGk3T0E9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0KLS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkakNDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdFkyeHAKWlc1MExXTmhRREUyTVRVeE5qVXpPVGt3SGhjTk1qRXdNekE0TURFd016RTVXaGNOTXpFd016QTJNREV3TXpFNQpXakFqTVNFd0h3WURWUVFEREJock0zTXRZMnhwWlc1MExXTmhRREUyTVRVeE5qVXpPVGt3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFSZWxjNkluYnZJVStKdy9GU3JPakRrMFJ4VXN0dHNrOWptOU5ldFpBc1MKTFlidWtkbFZLNy82V1B4SFpzT1FwSGt3YndkaXhWM3UyTmV3KzloT1hqWW1vMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVWx6N2grS3ZPOFRPS1hQcGhHTzJ4CmdaR3NYR1l3Q2dZSUtvWkl6ajBFQXdJRFJ3QXdSQUlnYlhOc2NzdzJMQW55UVk2cWhRbXVwaU41YXRRSC9sT08KMC9ReTdZN2l0OUlDSUVlWHZ4WUMyNEowbjhYV2pjQU9sZEh4TERTeHdNZUcrenZydmxhTFRmZnYKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo="
-api_key = "LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUVYQ0RPQytpYlc2YVZtdHlQSWFUeDF2SStZSkt5SEc4dUJyemJWYTJrUHhvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFQjRNTjBNaWxVcVNZOURjS0xURHJRSy9GOG5ycDFvVHpWKzM4SmdKQVU5OHpMa0xSVEw0VQpTQ0hhdVRQZzZoTDFkd1F4cWdWb0RMZUpQR2FtMVAxVlNBPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo="
-
-# Setup K8 configs
-asd = config.load_kube_config()
-kubernetes.client.Configuration()
-configuration = client.Configuration(host="https://danger-doug.turnbull.corp:6443", api_key=api_key)
-configuration.verify_ssl = False
-configuration.username = "arroyo-admin"
-
-
-api_instance = kubernetes.client.BatchV1Api(kubernetes.client.ApiClient(asd))
-
+# Setup K8 configs using kubeconfig
+kube_config = config.load_kube_config()
+print(kube_config)
+api_instance = kubernetes.client.BatchV1Api(kubernetes.client.ApiClient(kube_config))
 
 def kube_delete_empty_pods(namespace='default', phase='Succeeded'):
   """
@@ -167,49 +154,3 @@ def kube_create_job_object(name, container_image, namespace="default", container
   # And finaly we can create our V1JobSpec!
   body.spec = client.V1JobSpec(ttl_seconds_after_finished=600, template=template.template)
   return body
-
-
-def kube_test_credentials():
-  """
-  Testing function.
-  If you get an error on this call don't proceed. Something is wrong on your connectivty to
-  Google API.
-  Check Credentials, permissions, keys, etc.
-  Docs: https://cloud.google.com/docs/authentication/
-  """
-  try:
-    api_response = api_instance.get_api_resources()
-    logging.info(api_response)
-  except ApiException as e:
-    print("Exception when calling API: %s\n" % e)
-
-
-def kube_create_job():
-  # Create the job definition
-  container_image = "namespace/k8-test-app:83226641581a1f0971055f972465cb903755fc9a"
-  name = id_generator()
-  body = kube_create_job_object(name, container_image, env_vars={"VAR": "TESTING"})
-  try:
-    api_response = api_instance.create_namespaced_job("default", body, pretty=True)
-    print(api_response)
-  except ApiException as e:
-    print("Exception when calling BatchV1Api->create_namespaced_job: %s\n" % e)
-  return
-
-
-def id_generator(size=12, chars=string.ascii_lowercase + string.digits):
-  return ''.join(random.choice(chars) for _ in range(size))
-
-
-if __name__ == '__main__':
-  # Testing Credentials
-  kube_test_credentials()
-  # We try to cleanup dead jobs (READ THE FUNCTION CODE!)
-  kube_cleanup_finished_jobs()
-  kube_delete_empty_pods()
-  # Create a couple of jobs
-  for i in range(3):
-    kube_create_job()
-  # This was to test the use of ENV variables.
-  logging.info("Finshed! - ENV: {}".format(os.environ["VAR"]))
-  sys.exit(0)

@@ -1,20 +1,17 @@
-from config_handler import Config
+from util import config, database
 from tenant_handler.tenant_resource_manifest import TenantResourceManifest
-from util import get_collection
 
 
 class Tenant(object):
 
   def __init__(self, name):
-    self._config = Config()
     self._collection = self._get_collection()
     self._name = name
     self._query = {"name": self._name}
 
   @staticmethod
   def _get_collection():
-    config = Config()
-    return get_collection(
+    return database.get_collection(
       config.get_string_value("database", "database"),
       config.get_string_value("database", "tenant_collection")
     )

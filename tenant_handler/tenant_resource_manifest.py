@@ -1,22 +1,20 @@
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 from bson.objectid import ObjectId
-from config_handler import Config
+from util import config, database
+from util.enums import ResourceLifecycleStatus as status
 from tenant_handler.tenant_resource import TenantResource
-from util import get_collection
 
 
 class TenantResourceManifest(object):
 
   def __init__(self, tenant_name):
-    self._config = Config()
     self._collection = self._get_collection()
     self._tenant_name = tenant_name
     self._query = {"tenant": self._tenant_name}
 
   @staticmethod
   def _get_collection():
-    config = Config()
-    return get_collection(
+    return database.get_collection(
       config.get_string_value("database", "database"),
       config.get_string_value("database", "tenant_resource_manifest_collection")
     )
@@ -99,13 +97,8 @@ class TenantResourceManifest(object):
   def get_resource(self, resource_id):
     return TenantResource.get_resource(self.tenant_name, self.id, resource_id)
 
-  # TODO: This won't work right.
-  def find_resource(self, criteria=None) -> TenantResource:
-    if criteria is None:
-      criteria = {}
-    criteria["tenant_name"] = self.tenant_name
-    criteria["manifest_id"] = self.id
-    return self._collection.find_one(self._query, { "resources": { "$elemMatch": criteria }, "_id": 0 })
+  def find_resources(self, criteria=None) -> List[TenantResource]:
+    return TenantResource.find_resources(self.tenant_name, self.id, criteria)
 
   def put_resource(self, resource:dict) -> Tuple[bool,str]:
 
@@ -153,7 +146,7 @@ class TenantResourceManifest(object):
   def get_workspace_variables(self) -> dict:
     tenant_resources = {}
     for resource in self.resources:
-      if resource.status != "purge":
+      if resource.status not in [status.PURGING, status.PURGED, status.PURGE_ERROR]:
         if resource.module not in tenant_resources.keys():
           tenant_resources[resource.module] = {}
         tenant_resources[resource.module][resource.name] = resource.to_json()
@@ -183,9 +176,7 @@ class TenantResourceManifest(object):
     sorted_state_resources = {}
 
     for resource in state["resources"]:
-
       if resource["mode"] == "managed":
-
         if resource["module"] not in sorted_state_resources.keys():
           sorted_state_resources[resource["module"]] = []
 
@@ -193,8 +184,19 @@ class TenantResourceManifest(object):
         sorted_state_resources[resource["module"]].append(resource)
 
     for resource_module in sorted_state_resources.keys():
-      tenant_resource = TenantResource.find_resource(self.tenant_name, self.id,{"tf_id": resource_module})
+      tenant_resource = TenantResource.find_resources(self.tenant_name, self.id,{"tf_id": resource_module})[0]
       tenant_resource.update_components(sorted_state_resources[resource_module])
+
+      # If the resource was marked for deletion and something is stuck, mark that it's errored.
+      if tenant_resource.status == status.PURGING:
+        tenant_resource.status = status.PURGE_ERROR
+      else:
+        # If everything has gone well, then we mark this as complete.
+        tenant_resource.status = status.PROVISIONED
+
+    # Find the resources that should have been purged and mark
+    for resource in TenantResource.find_resources(self.tenant_name, self.id,{"status": status.PURGING.value}):
+      resource.status = status.PURGED
 
     return True
 
@@ -210,7 +212,7 @@ class TenantResourceManifest(object):
     state_resources = []
 
     for resource in self.resources:
-      if resource.status != "purge":
+      if resource.status not in [status.PURGING, status.PURGED, status.PURGE_ERROR]:
         state_resources.extend(resource.components)
 
     return {

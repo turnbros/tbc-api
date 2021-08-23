@@ -1,21 +1,16 @@
-from typing import Tuple
-
+from typing import Tuple, List
 from bson import ObjectId
-from config_handler import Config
-from util import get_collection
-
+from util import config, database, enums
 
 class TenantResource(object):
   def __init__(self, resource_id):
-    self._config = Config()
     self._collection = self._get_collection()
     self._resource_id = resource_id
     self._query = {"_id": ObjectId(self._resource_id)}
 
   @staticmethod
   def _get_collection():
-    config = Config()
-    return get_collection(
+    return database.get_collection(
       config.get_string_value("database", "database"),
       config.get_string_value("database", "tenant_resource_collection")
     )
@@ -36,12 +31,16 @@ class TenantResource(object):
     return resource
 
   @classmethod
-  def find_resource(cls, tenant_name, manifest_id, criteria=None):
+  def find_resources(cls, tenant_name, manifest_id, criteria=None):
     if criteria is None:
       criteria = {}
     criteria["tenant_name"] = tenant_name
     criteria["manifest_id"] = manifest_id
-    return TenantResource(str(cls._get_collection().find_one(criteria, {"_id": 1})["_id"]))
+    found_resources = []
+    for found_resource in cls._get_collection().find(criteria, {"_id": 1}):
+      found_resources.append(TenantResource(found_resource["_id"]))
+    return found_resources
+    #return TenantResource(str(cls._get_collection().find_one(criteria, {"_id": 1})["_id"]))
 
   @classmethod
   def create_resource(cls, **kwargs) -> Tuple[bool, str]:
@@ -51,7 +50,7 @@ class TenantResource(object):
       "name": kwargs.get("name"),
       "module": kwargs.get("module"),
       "tf_id": f"module.{kwargs.get('module')}[\"{kwargs.get('name')}\"]",
-      "status": "pending",
+      "status": enums.ResourceLifecycleStatus.PENDING.value,
       "parameters": kwargs.get("parameters"),
       "components": []
     }
@@ -62,7 +61,7 @@ class TenantResource(object):
   def delete_resource(cls, tenant_name, manifest_id, resource_id):
     cls._get_collection().update_one(
       {'_id': ObjectId(resource_id), "tenant_name": tenant_name, "manifest_id": manifest_id},
-      {"$set": {"status": "purge"}}
+      {"$set": {"status": enums.ResourceLifecycleStatus.PURGING.value}}
     )
 
   @classmethod
@@ -90,8 +89,13 @@ class TenantResource(object):
     return self._collection.find_one(self._query, {"module": 1, "_id": 0})["module"]
 
   @property
-  def status(self) -> str:
-    return self._collection.find_one(self._query, {"status": 1, "_id": 0})["status"]
+  def status(self) -> enums.ResourceLifecycleStatus:
+    status = self._collection.find_one(self._query, {"status": 1, "_id": 0})["status"]
+    return enums.ResourceLifecycleStatus[status.upper()]
+
+  @status.setter
+  def status(self, value: enums.ResourceLifecycleStatus):
+    self._collection.update_one(self._query, {"$set": {"status": value.value}})
 
   @property
   def parameters(self) -> dict:
