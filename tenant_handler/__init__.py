@@ -4,8 +4,9 @@ from flask import Blueprint, Response, request
 from tenant_handler.tenant import Tenant
 from terraform_runner import runner
 import traceback
+from urllib.parse import unquote
 
-tenant_routes = Blueprint('tenant', __name__, url_prefix='/tenant')
+tenant_routes = Blueprint('tenant', __name__, url_prefix='/tenants')
 
 ###################
 ## Tenant Routes ##
@@ -31,21 +32,23 @@ def get_tenant(name):
 ## Tenant Resource Routes ##
 ############################
 
-@tenant_routes.route('/<name>/resource', methods=['GET'])
+@tenant_routes.route('/<name>/resources', methods=['GET'])
 @auth.requires_auth
 def get_tenant_resource_collection(name):
   # TODO: Need to revisit the difference between `resource_manifest.to_json()` and `resource_manifest.find_resources`
-  if len(request.args) > 0:
-    search_criteria = {}
-    for criteria_key in request.args.keys():
-      search_criteria[criteria_key] = request.args.get(criteria_key)
-    found_tenants = Tenant(name).resource_manifest.find_resources(criteria=search_criteria)
-    response_json = {"resources": [x.to_json() for x in found_tenants]}
-    return Response(json.dumps(response_json), content_type='application/json'), 200
-  else:
-    return Response(json.dumps(Tenant(name).resource_manifest.to_json()), content_type='application/json'), 200
+#  if len(request.args) > 0:
+  search_criteria = {}
+  for criteria_key in request.args.keys():
+    search_criteria[criteria_key] = json.loads(unquote(request.args.get(criteria_key)))
+  print(search_criteria)
+  found_resources = Tenant(name).resource_manifest.find_resources(criteria=search_criteria)
+  response_json = [x.to_json() for x in found_resources]
+  return Response(json.dumps(response_json), content_type='application/json'), 200
+  #return Response(json.dumps(response_json), content_type='application/json'), 200
+#  else:
+#    return Response(json.dumps(Tenant(name).resource_manifest.to_json()), content_type='application/json'), 200
 
-@tenant_routes.route('/<name>/resource', methods=['PUT'])
+@tenant_routes.route('/<name>/resources', methods=['POST', 'PUT'])
 @auth.requires_auth
 def create_tenant_resource(name):
   requested_resource = json.loads(request.data)
@@ -54,17 +57,18 @@ def create_tenant_resource(name):
     "module": requested_resource.get("module", None),
     "parameters": requested_resource.get("parameters", None)
   }
+  print(tenant_resource)
   Tenant(name).resource_manifest.put_resource(tenant_resource)
 
   print(runner.run_terraform(name))
   return Response(json.dumps(tenant_resource), content_type='application/json'), 200
 
-@tenant_routes.route('/<name>/resource/<resource_id>', methods=['GET'])
+@tenant_routes.route('/<name>/resources/<resource_id>', methods=['GET'])
 @auth.requires_auth
 def get_tenant_resource(name, resource_id):
   return Response(json.dumps(Tenant(name).resource_manifest.get_resource(resource_id)), content_type='application/json'), 200
 
-@tenant_routes.route('/<name>/resource/<resource_id>', methods=['DELETE'])
+@tenant_routes.route('/<name>/resources/<resource_id>', methods=['DELETE'])
 @auth.requires_auth
 def delete_tenant_resource(name, resource_id):
   try:

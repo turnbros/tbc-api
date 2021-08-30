@@ -3,8 +3,14 @@ import string
 from util import kube_job, config
 from util.enums import ResourceLifecycleStatus as status
 from tenant_handler.tenant import Tenant
+import base64
 
 def run_terraform(tenant_name):
+
+  cluster_endpoint = config.get_string_value("kubernetes", "cluster_endpoint")
+  cluster_cert = config.get_string_value("kubernetes", "cluster_cert")
+  client_key = config.get_string_value("kubernetes", "client_key")
+  client_cert = config.get_string_value("kubernetes", "client_cert")
 
   tenant_domain = config.get_string_value("tenant", "tenant_domain")
   job_image = config.get_string_value("terraform", "job_image")
@@ -17,9 +23,13 @@ def run_terraform(tenant_name):
     namespace=job_namespace,
     container_name="tenant-apply-container",
     env_vars={
-      "TF_HTTP_ADDRESS": f"{api_endpoint}/tenant/{tenant_name}/workspace/state",
-      "TF_HTTP_LOCK_ADDRESS": f"{api_endpoint}/tenant/{tenant_name}/workspace/state",
-      "TF_HTTP_UNLOCK_ADDRESS": f"{api_endpoint}/tenant/{tenant_name}/workspace/state",
+      "TF_HTTP_ADDRESS": f"{api_endpoint}/tenants/{tenant_name}/workspace/state",
+      "TF_HTTP_LOCK_ADDRESS": f"{api_endpoint}/tenants/{tenant_name}/workspace/state",
+      "TF_HTTP_UNLOCK_ADDRESS": f"{api_endpoint}/tenants/{tenant_name}/workspace/state",
+      "TF_VAR_kube_host": f"{cluster_endpoint}",
+      "TF_VAR_kube_cluster_ca_cert": f"{cluster_cert}",
+      "TF_VAR_kube_client_key": f"{client_key}",
+      "TF_VAR_kube_client_cert": f"{client_cert}",
       "TF_VAR_tbc_api_endpoint": f"{api_endpoint}",
       "TF_VAR_tenant_name": tenant_name,
       "TF_VAR_tenant_domain": f"{tenant_name}.{tenant_domain}"

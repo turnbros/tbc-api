@@ -29,7 +29,8 @@ class TenantResourceManifest(object):
       "serial": None,
       "lineage": None,
       "lock": None,
-      "outputs": {}
+      "outputs": {},
+      "tenant_configuration_components": []
     }
     cls._get_collection().insert_one(resource_collection)
 
@@ -93,6 +94,17 @@ class TenantResourceManifest(object):
   @property
   def resources(self) -> dict:
     return TenantResource.list_resources(self.tenant_name, self.id)
+
+  @property
+  def tenant_configuration_components(self) -> list:
+    components = self._collection.find_one(self._query, {"tenant_configuration_components": 1, "_id": 0})["tenant_configuration_components"]
+    if components is None:
+      return []
+    return components
+
+  @tenant_configuration_components.setter
+  def tenant_configuration_components(self, values):
+    self._collection.update_one(self._query, {"$set": {"tenant_configuration_components": values}})
 
   def get_resource(self, resource_id):
     return TenantResource.get_resource(self.tenant_name, self.id, resource_id)
@@ -173,18 +185,30 @@ class TenantResourceManifest(object):
     self.lineage = state["lineage"]
     self.outputs = state["outputs"]
 
+    tenant_config_components = []
     sorted_state_resources = {}
 
     for resource in state["resources"]:
       if resource["mode"] == "managed":
-        if resource["module"] not in sorted_state_resources.keys():
-          sorted_state_resources[resource["module"]] = []
+        if resource["module"] == "module.tenant_configuration":
+          tenant_config_components.append(resource)
+        else:
+          if resource["module"] not in sorted_state_resources.keys():
+            sorted_state_resources[resource["module"]] = []
+          sorted_state_resources[resource["module"]].append(resource)
 
-        print(f"State Resource: {resource}")
-        sorted_state_resources[resource["module"]].append(resource)
+    # Update the tenant configuration component array.
+    self.tenant_configuration_components = tenant_config_components
 
+    # This is where we take tenant resources Terraform state objects and update the tenant resources.
     for resource_module in sorted_state_resources.keys():
-      tenant_resource = TenantResource.find_resources(self.tenant_name, self.id,{"tf_id": resource_module})[0]
+
+      found_resources = TenantResource.find_resources(self.tenant_name, self.id, {"tf_id": resource_module})
+
+      if len(found_resources) == 0:
+        print(f"Unable to locate resource with query: {self.tenant_name} {self.id} {{\"tf_id\": {resource_module}}}")
+
+      tenant_resource = found_resources[0]
       tenant_resource.update_components(sorted_state_resources[resource_module])
 
       # If the resource was marked for deletion and something is stuck, mark that it's errored.
@@ -211,6 +235,10 @@ class TenantResourceManifest(object):
   def to_state(self):
     state_resources = []
 
+    # Get the tenants configuration components
+    state_resources.extend(self.tenant_configuration_components)
+
+    # Get the resource configuration components
     for resource in self.resources:
       if resource.status not in [status.PURGING, status.PURGED, status.PURGE_ERROR]:
         state_resources.extend(resource.components)

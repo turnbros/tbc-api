@@ -1,6 +1,7 @@
 from typing import Tuple, List
 from bson import ObjectId
 from util import config, database, enums
+from workspace import get_workspace_module_attribute
 
 class TenantResource(object):
   def __init__(self, resource_id):
@@ -119,6 +120,11 @@ class TenantResource(object):
     })
     resource["id"] = str(resource["_id"])
     resource.pop("_id")
+
+    # TODO: Maybe the icon should just be stored with the resource?
+    print(get_workspace_module_attribute(resource["module"], "icon"))
+    resource["icon"] = get_workspace_module_attribute(resource["module"], "icon")
+
     return resource
 
   def to_state_object(self) -> list:

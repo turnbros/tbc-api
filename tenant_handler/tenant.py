@@ -52,6 +52,22 @@ class Tenant(object):
     self._collection.update_one(self._query, {"$set": {"roles": value}})
 
   @property
+  def port_allocation(self):
+    return {
+      "start": 20480,
+      "end": 20780,
+      "size": 300,
+      "available": 298,
+      "allocated": 2,
+      "allocations": [
+        {
+          "resource_id": 2345,
+          "ports": [20780,20781]
+        }
+      ]
+    }
+
+  @property
   def resource_manifest(self):
     return TenantResourceManifest(self.name)
 
