@@ -159,9 +159,15 @@ class TenantResourceManifest(object):
     tenant_resources = {}
     for resource in self.resources:
       if resource.status not in [status.PURGING, status.PURGED, status.PURGE_ERROR]:
+
+        # If this resources module type doesn't exist in the dictionary, then we should add it
         if resource.module not in tenant_resources.keys():
-          tenant_resources[resource.module] = {}
-        tenant_resources[resource.module][resource.name] = resource.to_json()
+          tenant_resources[resource.module] = []
+
+        # Add the resource to it's modules list.
+        tenant_resources[resource.module].append(resource.to_json())
+
+    # Return our map of sorted resource lists
     return tenant_resources
 
   def lock_state(self, lock) -> Union[None, dict]:
